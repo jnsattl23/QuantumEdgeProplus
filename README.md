@@ -243,8 +243,7 @@ This EA is available for purchase with commercial licensing:
 
 ## 🛒 Purchase Options
 
-[![Buy Professional](https://img.shields.io/badge/Buy_Professional-$199-success?style=for-the-badge)](https://gum.co/qep-professional)
-[![Buy Premium](https://img.shields.io/badge/Buy_Premium-$299-gold?style=for-the-badge)](https://gum.co/qep-premium)
+[![Buy Professional](https://img.shields.io/badge/Buy_Professional-$199-success?style=for-the-badge)](https://humsoa.gumroad.com/l/owewut?_gl=1*bjzuwc*_ga*MTc1NDEzODUwNi4xNzU3ODQxMDkw*_ga_6LJN6D94N6*czE3NTc4NzY5NDUkbzMkZzEkdDE3NTc4NzkxNTQkajUxJGwwJGgw)
 
 ### Payment Methods:
 💳 Credit Card | ₿ Bitcoin | 💶 Bank Transfer
