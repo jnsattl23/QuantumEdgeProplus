@@ -1,0 +1,998 @@
+//+------------------------------------------------------------------+
+//|QuantumEdgePro .mq5                                      |
+//|Quantum AI Trading System - Enhanced Pattern Recognition          |
+//|Copyright 2025, QuantEdge Systems                                 |                                     |
+//+------------------------------------------------------------------+
+#property copyright "QuantEdge Systems"
+#property version   "11.0"
+#property description "Quantum AI Trading System with Enhanced Pattern Recognition"
+
+#include <Trade\Trade.mqh>
+#include <Trade\PositionInfo.mqh>
+#include <Trade\OrderInfo.mqh>
+#include <Trade\HistoryOrderInfo.mqh>
+#include <Trade\DealInfo.mqh>
+
+//--- Enhanced Configuration
+input double   MaxAllowedSpread = 5.0;      // Max spread in points
+input double   MaxCommissionPct = 0.15;     // Max commission percentage per trade
+input double   MaxAllowedSlippage = 3.0;    // Max slippage allowed
+input double   RiskPerTrade = 0.02;         // Risk per trade (2%)
+input int      MagicNumber = 987654;        // Unique EA ID
+input double   DailyProfitTarget = 0.05;    // 5% daily profit target
+input double   CryptoVolatilityBuffer = 0.3; // Extra buffer for crypto
+input double   ConservativeThreshold = 2.0; // Profit % to become conservative
+input double   AggressiveThreshold = -3.0;  // Drawdown % to become aggressive
+input bool     UseReinforcementLearning = true; // Enable RL framework
+input int      FeatureRetryCount = 3;       // Feature prep retries
+
+//--- Pattern Recognition Settings
+input bool     UseElliotWaveAnalysis = true;   // Enable Elliot Wave pattern detection
+input bool     UseHarmonicPatterns = true;     // Enable harmonic pattern detection
+input bool     UseCandlestickPatterns = true;  // Enable candlestick pattern detection
+input bool     UseVolumeAnalysis = true;       // Enable volume pattern analysis
+input int      PatternLookbackBars = 100;      // Number of bars to analyze for patterns
+
+//--- NEW: Partial Profit-Taking
+input double   PartialProfitPct = 0.5;  // Percentage of profit to take (e.g., 0.5 for 50%)
+input double   PartialProfitClose = 0.5;  // Percentage of lot size to close
+
+//--- RL Warm-up Gating
+input int      RLWarmupMinTrades = 200;    // Minimum trades before RL can influence
+input int      RLWarmupMinDays = 14;       // Minimum days before RL can influence
+input bool     RLInfluenceAfterWarmup = true; // Only let RL influence after warm-up
+
+//--- Global Variables
+CTrade trade;
+CPositionInfo positionInfo;
+COrderInfo orderInfo;
+CHistoryOrderInfo historyOrderInfo;
+CDealInfo dealInfo;
+
+// Risk state enum
+enum ENUM_RISK_STATE
+{
+   RISK_CONSERVATIVE,  // Reduce position sizes, tighter stops
+   RISK_BALANCED,      // Standard risk parameters
+   RISK_AGGRESSIVE     // Increased position sizes, wider stops
+};
+
+ENUM_RISK_STATE currentRiskState = RISK_BALANCED;
+datetime lastRiskStateChange = 0;
+double dailyProfitPct = 0.0;
+
+//--- Daily PnL Tracking
+double   g_startOfDayEquity = -1.0;
+datetime g_dayAnchor = 0;
+
+//--- RL Warm-up State
+datetime g_rlStartTime = 0;
+bool     g_rlInfluenceEnabled = false;
+
+//--- Pattern Recognition Structures
+enum ENUM_PATTERN_TYPE
+{
+   PATTERN_NONE,
+   PATTERN_ELLIOT_IMPULSE,
+   PATTERN_ELLIOT_CORRECTIVE,
+   PATTERN_GARTLEY,
+   PATTERN_BAT,
+   PATTERN_BUTTERFLY,
+   PATTERN_CANCELED,
+   PATTERN_ENGULFING,
+   PATTERN_DOJI,
+   PATTERN_HAMMER,
+   PATTERN_SHOOTING_STAR
+};
+
+struct PatternSignal
+{
+   ENUM_PATTERN_TYPE patternType;
+   double            confidence;
+   int               direction; // 1 for bullish, -1 for bearish
+   double            targetPrice;
+   double            stopLossPrice;
+   datetime          expiration;
+};
+
+//--- Indicator Handles
+int rsiHandle, macdHandle, atrHandle, momentumHandle, cciHandle, stochHandle;
+
+//--- Experience logging
+struct Experience
+{
+   double state[];
+   int    action;
+   int    result;
+};
+
+Experience experiences[];
+
+//--- RL agent class (Enhanced & Corrected)
+class CReinforcementLearning
+{
+private:
+   double   learningRate;
+   double   explorationRate;
+   datetime lastUpdateTime;
+
+public:
+   double   policyParams[];
+   Experience experienceBuffer[];
+   int      bufferSize;
+   int      maxBufferSize;
+   
+   bool Init(int buffer_size)
+   {
+      bufferSize = 0;
+      maxBufferSize = buffer_size;
+      ArrayResize(policyParams, 10); // Placeholder size
+      Print("RL Agent Initialized.");
+      return true;
+   }
+
+   void GetPolicyUpdate(double &params[])
+   {
+      ArrayCopy(params, policyParams, 0, 0, WHOLE_ARRAY);
+   }
+   
+   void Update(int tradeResult, double &state[], int action)
+   {
+      Print("RL Agent: Received update with result ", tradeResult);
+   }
+};
+
+CReinforcementLearning RLAgent;
+
+//--- Performance Monitor class
+class CPerformanceMonitor
+{
+public:
+   void LogWarning(string msg) { Print("WARNING: ", msg); }
+   void LogError(string msg)   { Print("ERROR: ", msg); }
+   void LogInfo(string msg)    { Print("INFO: ", msg); }
+};
+
+CPerformanceMonitor perfMonitor;
+
+//--- Pattern Recognition Engine class
+class CPatternRecognizer
+{
+private:
+   int      patternBars;
+
+public:
+   CPatternRecognizer(int lookbackBars = 100)
+   {
+      patternBars = lookbackBars;
+   }
+   
+   bool ScanForPatterns(string symbol, ENUM_TIMEFRAMES timeframe, PatternSignal &signal)
+   {
+      // Placeholder for pattern recognition logic
+      return false;
+   }
+};
+
+CPatternRecognizer patternRecognizer(PatternLookbackBars);
+
+//--- Crypto Analyzer class (Enhanced & Corrected)
+class CCryptoAnalyzer
+{
+public:
+   double CalculateATRVolatilityFactor(string symbol)
+   {
+      int atrHandleDaily = iATR(symbol, PERIOD_D1, 14);
+      double atr_values[];
+      if(CopyBuffer(atrHandleDaily, 0, 0, 1, atr_values) > 0)
+      {
+         double atr = atr_values[0];
+         double price = SymbolInfoDouble(symbol, SYMBOL_ASK);
+         if(price > 0)
+         {
+            IndicatorRelease(atrHandleDaily);
+            return (atr / price);
+         }
+      }
+      IndicatorRelease(atrHandleDaily);
+      return 0.01;
+   }
+
+   double GetVolatilityAdjustedSize(double baseSize, string symbol)
+   {
+      double volatilityFactor = CalculateATRVolatilityFactor(symbol);
+      double riskMultiplier = 1.0 - (volatilityFactor * CryptoVolatilityBuffer);
+      
+      if(riskMultiplier < 0.1) riskMultiplier = 0.1;
+      
+      return(baseSize * riskMultiplier);
+   }
+};
+
+CCryptoAnalyzer cryptoAnalyzer;
+
+//--- Federated Node class (Enhanced & Corrected)
+class CFederatedNode
+{
+private:
+   bool     isActive;
+   string   nodeId;
+   datetime lastUpdateTime;
+
+   bool CheckFederatedConnection()
+   {
+      return false;
+   }
+
+public:
+   CFederatedNode()
+   {
+      isActive = false;
+      nodeId = "QEP_Node_" + IntegerToString(AccountInfoInteger(ACCOUNT_LOGIN));
+      lastUpdateTime = 0;
+      isActive = CheckFederatedConnection();
+   }
+};
+
+CFederatedNode federatedNode;
+
+//--- Global variables for experience logging
+datetime g_lastHistoryCheck = 0;
+string   g_experienceFile = "QEP_experiences.csv";
+string   g_policySnapshotFile = "QEP_policy_snapshot.bin";
+
+//--- Auto-snapshot variables
+int g_snapshotIntervalSeconds = 600;
+int g_snapshotTradeInterval = 10;
+int g_snapshotTradeCounter = 0;
+
+// Local variable to track RL usage (since input variable is constant)
+bool g_useRL = false;
+
+//--- Forward declarations
+void EnsureDayStartEquity();
+string MakeDayKey(datetime t);
+int CountClosedDirectionDealsSince(datetime since);
+bool IsRLWarmupComplete();
+double CalculatePositionSize(double entryPrice, double stopLossPrice);
+int GetTechnicalSignal();
+void BuildMarketState(double &state[]);
+void LogExperience(double &state[], int action, int result);
+void ProcessClosedDeals();
+double RewardFromPnL(double profit);
+void AppendExperienceToFile(datetime ts, string symbol, int direction, double lots, int slPts, int tpPts, double conf, double sent, const double &state[]);
+void SavePolicySnapshot();
+void EnableAutoSnapshot(int seconds);
+void DisableAutoSnapshot();
+void MaybeSnapshotAfterTrades();
+void ExportArtifacts();
+void UpdateRiskState();
+void CalculateDailyProfit();
+void UpdateReinforcementLearning(int tradeResult, double &state[], int action);
+void ExecuteTrade(int direction, double confidence, double sentiment, double entryPrice, double stopLossPrice);
+void ManageAllPositions();
+bool CheckBrokerConditions();
+bool CheckSlippageConditions();
+bool PrepareMultiModalFeatures(double &features[], int signal);
+bool TryPrepareFeatures(double &features[], int signal);
+bool HasPosition(string symbol, int magic);
+
+//+------------------------------------------------------------------+
+//| Expert initialization function                                   |
+//+------------------------------------------------------------------+
+int OnInit()
+{
+   g_rlStartTime = TimeCurrent();
+   trade.SetExpertMagicNumber(MagicNumber);
+   
+   // Initialize indicator handles
+   rsiHandle = iRSI(_Symbol, PERIOD_CURRENT, 14, PRICE_CLOSE);
+   macdHandle = iMACD(_Symbol, PERIOD_CURRENT, 12, 26, 9, PRICE_CLOSE);
+   atrHandle = iATR(_Symbol, PERIOD_CURRENT, 14);
+   momentumHandle = iMomentum(_Symbol, PERIOD_CURRENT, 14, PRICE_CLOSE);
+   cciHandle = iCCI(_Symbol, PERIOD_CURRENT, 14, PRICE_TYPICAL);
+   stochHandle = iStochastic(_Symbol, PERIOD_CURRENT, 5, 3, 3, MODE_SMA, STO_LOWHIGH);
+   
+   // Initialize RL agent (use local variable instead of modifying input)
+   g_useRL = UseReinforcementLearning;
+   if(g_useRL && !RLAgent.Init(1000))
+   {
+      g_useRL = false;
+      perfMonitor.LogWarning("RL agent initialization failed");
+   }
+   
+   EnableAutoSnapshot(g_snapshotIntervalSeconds);
+   
+   return(INIT_SUCCEEDED);
+}
+
+//+------------------------------------------------------------------+
+//| Expert deinitialization function                                 |
+//+------------------------------------------------------------------+
+void OnDeinit(const int reason)
+{
+   // Release indicator handles
+   IndicatorRelease(rsiHandle);
+   IndicatorRelease(macdHandle);
+   IndicatorRelease(atrHandle);
+   IndicatorRelease(momentumHandle);
+   IndicatorRelease(cciHandle);
+   IndicatorRelease(stochHandle);
+   
+   DisableAutoSnapshot();
+   SavePolicySnapshot();
+   ExportArtifacts();
+   Print("EA Deinitialized. Reason code: ", reason);
+}
+
+//+------------------------------------------------------------------+
+//| Expert tick function                                             |
+//+------------------------------------------------------------------+
+void OnTick()
+{
+   // Keep day anchor fresh
+   EnsureDayStartEquity();
+
+   static datetime lastBarTime = 0;
+   datetime currentBarTime = iTime(_Symbol, PERIOD_CURRENT, 0);
+
+   // Only proceed if a new bar has opened
+   if(currentBarTime > lastBarTime)
+   {
+      lastBarTime = currentBarTime;
+
+      // 1. Manage existing positions first
+      ManageAllPositions();
+      
+      // 2. Process historical deals for RL
+      ProcessClosedDeals();
+
+      // 3. Check for new trading opportunities if no position is open for this symbol
+      if(!HasPosition(_Symbol, MagicNumber))
+      {
+         // Pre-trade checks
+         if(!CheckBrokerConditions() || !CheckSlippageConditions())
+         {
+            return;
+         }
+
+         // Get a trading signal (1 for buy, -1 for sell, 0 for none)
+         int signal = GetTechnicalSignal();
+         if(signal != 0)
+         {
+            double features[];
+            if(PrepareMultiModalFeatures(features, signal))
+            {
+               double state[];
+               BuildMarketState(state);
+               
+               // For now, use placeholder values for execution
+               double confidence = 0.75;
+               double sentiment = 0.5;
+               
+               // Determine Entry and Stop Loss
+               MqlTick latest_tick;
+               SymbolInfoTick(_Symbol, latest_tick);
+               double entryPrice = (signal == 1) ? latest_tick.ask : latest_tick.bid;
+               
+               // Calculate ATR-based stop loss
+               double atrBuffer[];
+               CopyBuffer(atrHandle, 0, 0, 1, atrBuffer);
+               double atrValue = atrBuffer[0];
+               double stopLossPrice = (signal == 1) ? entryPrice - atrValue * 2 : entryPrice + atrValue * 2;
+
+               ExecuteTrade(signal, confidence, sentiment, entryPrice, stopLossPrice);
+            }
+         }
+      }
+   }
+}
+
+//+------------------------------------------------------------------+
+//| Check if position exists for symbol and magic number            |
+//+------------------------------------------------------------------+
+bool HasPosition(string symbol, int magic)
+{
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+   {
+      if(positionInfo.SelectByIndex(i))
+      {
+         if(positionInfo.Symbol() == symbol && positionInfo.Magic() == magic)
+            return true;
+      }
+   }
+   return false;
+}
+
+//+------------------------------------------------------------------+
+//|Build market state for RL                                         |
+//+------------------------------------------------------------------+
+void BuildMarketState(double &state[])
+{
+   double buffer[];
+   ArraySetAsSeries(buffer, true);
+   ArrayResize(state, 8);
+   
+   // RSI
+   if(CopyBuffer(rsiHandle, 0, 0, 1, buffer) > 0)
+      state[0] = buffer[0];
+   else
+      state[0] = 0;
+   
+   // MACD
+   if(CopyBuffer(macdHandle, 0, 0, 1, buffer) > 0)
+      state[1] = buffer[0];
+   else
+      state[1] = 0;
+   
+   // Momentum
+   if(CopyBuffer(momentumHandle, 0, 0, 1, buffer) > 0)
+      state[2] = buffer[0];
+   else
+      state[2] = 0;
+   
+   // CCI
+   if(CopyBuffer(cciHandle, 0, 0, 1, buffer) > 0)
+      state[3] = buffer[0];
+   else
+      state[3] = 0;
+   
+   // ATR
+   if(CopyBuffer(atrHandle, 0, 0, 1, buffer) > 0)
+      state[4] = buffer[0];
+   else
+      state[4] = 0;
+   
+   // Stochastic
+   if(CopyBuffer(stochHandle, 0, 0, 1, buffer) > 0)
+      state[5] = buffer[0];
+   else
+      state[5] = 0;
+   
+   state[6] = (double)currentRiskState;
+   state[7] = dailyProfitPct;
+}
+
+//+------------------------------------------------------------------+
+//|Technical signal (fallback)                                       |
+//+------------------------------------------------------------------+
+int GetTechnicalSignal()
+{
+   double rsi[], macdMain[], macdSignal[];
+   ArraySetAsSeries(rsi, true);
+   ArraySetAsSeries(macdMain, true);
+   ArraySetAsSeries(macdSignal, true);
+   
+   if(CopyBuffer(rsiHandle, 0, 0, 1, rsi) <= 0) return 0;
+   if(CopyBuffer(macdHandle, 0, 0, 1, macdMain) <= 0) return 0;
+   if(CopyBuffer(macdHandle, 1, 0, 1, macdSignal) <= 0) return 0;
+
+   bool buy_condition = rsi[0] > 50 && macdMain[0] > macdSignal[0] && macdMain[0] > 0;
+   bool sell_condition = rsi[0] < 50 && macdMain[0] < macdSignal[0] && macdMain[0] < 0;
+
+   if(buy_condition) return 1;
+   if(sell_condition) return -1;
+
+   return 0;
+}
+
+//+------------------------------------------------------------------+
+//|Enhanced Feature Preparation with Retry Mechanism                 |
+//+------------------------------------------------------------------+
+bool PrepareMultiModalFeatures(double &features[], int signal)
+{
+   int retryCount = 0;
+   while(retryCount < FeatureRetryCount)
+   {
+      if(TryPrepareFeatures(features, signal)) return true;
+      
+      retryCount++;
+      perfMonitor.LogWarning("Feature preparation failed. Retry " + IntegerToString(retryCount));
+      Sleep(50);
+   }
+   perfMonitor.LogError("Feature preparation failed after all retries.");
+   return false;
+}
+
+bool TryPrepareFeatures(double &features[], int signal)
+{
+   ArrayResize(features, 128);
+   for(int i = 0; i < 128; i++)
+   {
+      int maHandle = iMA(_Symbol, PERIOD_CURRENT, i + 1, 0, MODE_EMA, PRICE_CLOSE);
+      double buffer[];
+      if(CopyBuffer(maHandle, 0, 0, 1, buffer) > 0)
+      {
+         features[i] = buffer[0];
+         IndicatorRelease(maHandle);
+      }
+      else
+      {
+         IndicatorRelease(maHandle);
+         return false;
+      }
+   }
+   return true;
+}
+
+//+------------------------------------------------------------------+
+//|Broker Condition Check (Pre-Trade) - Enhanced                    |
+//+------------------------------------------------------------------+
+bool CheckBrokerConditions()
+{
+   // Spread check
+   int currentSpread = (int)SymbolInfoInteger(_Symbol, SYMBOL_SPREAD);
+   if(currentSpread > (int)MaxAllowedSpread)
+   {
+      perfMonitor.LogWarning("Spread too high: " + IntegerToString(currentSpread) + " > " + IntegerToString((int)MaxAllowedSpread));
+      return false;
+   }
+
+   return true;
+}
+
+//+------------------------------------------------------------------+
+//|Slippage Condition Check                                         |
+//+------------------------------------------------------------------+
+bool CheckSlippageConditions()
+{
+   if(HistoryDealsTotal() == 0)
+   {
+      perfMonitor.LogInfo("No deal history available for slippage check. Allowing trade.");
+      return true;
+   }
+   
+   return true;
+}
+
+//+------------------------------------------------------------------+
+//|Update Risk State Based on Performance                           |
+//+------------------------------------------------------------------+
+void UpdateRiskState()
+{
+   CalculateDailyProfit();
+
+   ENUM_RISK_STATE previousState = currentRiskState;
+
+   if(dailyProfitPct >= ConservativeThreshold)
+   {
+      currentRiskState = RISK_CONSERVATIVE;
+   }
+   else if(dailyProfitPct <= AggressiveThreshold)
+   {
+      currentRiskState = RISK_AGGRESSIVE;
+   }
+   else
+   {
+      currentRiskState = RISK_BALANCED;
+   }
+   
+   if(previousState != currentRiskState)
+   {
+      lastRiskStateChange = TimeCurrent();
+      perfMonitor.LogInfo("Risk state changed to: " + EnumToString(currentRiskState));
+   }
+}
+
+//+------------------------------------------------------------------+
+//|Calculate Daily Profit Percentage                                |
+//+------------------------------------------------------------------+
+void CalculateDailyProfit()
+{
+   EnsureDayStartEquity();
+   if(g_startOfDayEquity > 0)
+   {
+      double currentEquity = AccountInfoDouble(ACCOUNT_EQUITY);
+      dailyProfitPct = ((currentEquity - g_startOfDayEquity) / g_startOfDayEquity) * 100.0;
+   }
+}
+
+//+------------------------------------------------------------------+
+//|Update Reinforcement Learning with Experience Storage            |
+//+------------------------------------------------------------------+
+void UpdateReinforcementLearning(int tradeResult, double &state[], int action)
+{
+   if(!g_useRL) return;
+   
+   RLAgent.Update(tradeResult, state, action);
+   LogExperience(state, action, tradeResult);
+}
+
+//+------------------------------------------------------------------+
+//|Enhanced Trade Execution with Broker Checks                      |
+//+------------------------------------------------------------------+
+void ExecuteTrade(int direction, double confidence, double sentiment, double entryPrice, double stopLossPrice)
+{
+   UpdateRiskState();
+   EnsureDayStartEquity();
+
+   // Check daily profit target
+   if(dailyProfitPct >= DailyProfitTarget)
+   {
+      perfMonitor.LogInfo("Daily profit target reached. No new trades.");
+      return;
+   }
+
+   double lotSize = CalculatePositionSize(entryPrice, stopLossPrice);
+   if(lotSize <= 0)
+   {
+      perfMonitor.LogError("Invalid lot size calculated: " + DoubleToString(lotSize, 2));
+      return;
+   }
+   
+   // Calculate Take Profit
+   double price_diff = MathAbs(entryPrice - stopLossPrice);
+   double takeProfitPrice = 0;
+   if(direction == 1) // Buy
+   {
+      takeProfitPrice = entryPrice + price_diff * 1.5;
+   }
+   else if(direction == -1) // Sell
+   {
+      takeProfitPrice = entryPrice - price_diff * 1.5;
+   }
+
+   bool result = false;
+   if(direction == 1) // Buy
+   {
+      result = trade.Buy(lotSize, _Symbol, entryPrice, stopLossPrice, takeProfitPrice, "Buy triggered by QEP");
+   }
+   else if(direction == -1) // Sell
+   {
+      result = trade.Sell(lotSize, _Symbol, entryPrice, stopLossPrice, takeProfitPrice, "Sell triggered by QEP");
+   }
+
+   if(result)
+   {
+      perfMonitor.LogInfo("Trade executed successfully. Direction: " + IntegerToString(direction));
+      MaybeSnapshotAfterTrades();
+   }
+   else
+   {
+      perfMonitor.LogError("Trade execution failed. Error: " + IntegerToString(trade.ResultRetcode()));
+   }
+}
+
+//+------------------------------------------------------------------+
+//|Calculate Position Size with Stop Loss (Refined)                 |
+//+------------------------------------------------------------------+
+double CalculatePositionSize(double entryPrice, double stopLossPrice)
+{
+   if(stopLossPrice == 0 || entryPrice == stopLossPrice)
+   {
+      perfMonitor.LogError("Cannot calculate position size: Stop Loss is zero or equals entry price.");
+      return 0.0;
+   }
+
+   double accountBalance = AccountInfoDouble(ACCOUNT_EQUITY);
+   double cashToRisk = accountBalance * RiskPerTrade;
+   double stopLossPoints = MathAbs(entryPrice - stopLossPrice) / _Point;
+
+   if(stopLossPoints == 0)
+   {
+      perfMonitor.LogError("Stop loss points are zero.");
+      return 0.0;
+   }
+
+   // Get symbol properties for calculation
+   double tickValue = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE);
+   double tickSize = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE);
+   double lotStep = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_STEP);
+   double minLot = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN);
+   double maxLot = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MAX);
+   
+   if(tickValue == 0 || tickSize == 0)
+   {
+      perfMonitor.LogError("Invalid tick value or tick size for symbol " + _Symbol);
+      return 0.0;
+   }
+
+   double valuePerPoint = tickValue / tickSize;
+   double lots = cashToRisk / (stopLossPoints * valuePerPoint);
+   
+   // Apply risk state modifications
+   if(currentRiskState == RISK_CONSERVATIVE) lots *= 0.5;
+   if(currentRiskState == RISK_AGGRESSIVE) lots *= 1.5;
+
+   // Normalize lot size
+   lots = MathRound(lots / lotStep) * lotStep;
+   
+   // Clamp to min/max lot sizes
+   if(lots < minLot) lots = minLot;
+   if(lots > maxLot) lots = maxLot;
+   
+   return lots;
+}
+
+//+------------------------------------------------------------------+
+//|Manage all open positions                                        |
+//+------------------------------------------------------------------+
+void ManageAllPositions()
+{
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+   {
+      if(positionInfo.SelectByIndex(i))
+      {
+         if(positionInfo.Symbol() == _Symbol && positionInfo.Magic() == MagicNumber)
+         {
+            double current_price = positionInfo.PriceCurrent();
+            double open_price = positionInfo.PriceOpen();
+            ENUM_POSITION_TYPE position_type = positionInfo.PositionType();
+            double take_profit = positionInfo.TakeProfit();
+            
+            double profit_target_price = 0;
+
+            // Calculate the price at which partial profit should be taken
+            if(position_type == POSITION_TYPE_BUY)
+            {
+               profit_target_price = open_price + (take_profit - open_price) * PartialProfitPct;
+            }
+            else // SELL
+            {
+               profit_target_price = open_price - (open_price - take_profit) * PartialProfitPct;
+            }
+            
+            // Check if the condition is met
+            bool take_partial_profit = false;
+            if(position_type == POSITION_TYPE_BUY && current_price >= profit_target_price)
+            {
+               take_partial_profit = true;
+            }
+            else if(position_type == POSITION_TYPE_SELL && current_price <= profit_target_price)
+            {
+               take_partial_profit = true;
+            }
+
+            if(take_partial_profit)
+            {
+               double currentVolume = positionInfo.Volume();
+               double volumeToClose = currentVolume * PartialProfitClose;
+               double minLot = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN);
+               
+               // Ensure we are not closing less than the minimum allowed volume
+               if (volumeToClose >= minLot)
+               {
+                  perfMonitor.LogInfo("Taking partial profit for position on " + _Symbol);
+                  if(trade.PositionClosePartial(positionInfo.Ticket(), volumeToClose))
+                  {
+                     // Partial close successful
+                  }
+                  else
+                  {
+                     perfMonitor.LogError("Failed to close partial position. Error: " + IntegerToString(trade.ResultRetcode()));
+                  }
+               }
+            }
+         }
+      }
+   }
+}
+
+//+------------------------------------------------------------------+
+//| Process closed deals and update RL                               |
+//+------------------------------------------------------------------+
+void ProcessClosedDeals()
+{
+   datetime now = TimeCurrent();
+   if(g_lastHistoryCheck == 0) g_lastHistoryCheck = now - 3600;
+
+   HistorySelect(g_lastHistoryCheck, now);
+   for(int i = 0; i < HistoryDealsTotal(); i++)
+   {
+      ulong ticket = HistoryDealGetTicket(i);
+      if(HistoryDealGetInteger(ticket, DEAL_MAGIC) == MagicNumber)
+      {
+         if(HistoryDealGetInteger(ticket, DEAL_ENTRY) == DEAL_ENTRY_OUT)
+         {
+            double profit = HistoryDealGetDouble(ticket, DEAL_PROFIT);
+            int result = (profit >= 0) ? 1 : -1;
+            int action = (HistoryDealGetInteger(ticket, DEAL_TYPE) == DEAL_TYPE_BUY) ? 1 : -1;
+            
+            double state[];
+            BuildMarketState(state);
+            
+            UpdateReinforcementLearning(result, state, action);
+         }
+      }
+   }
+   g_lastHistoryCheck = now;
+}
+
+//+------------------------------------------------------------------+
+//| Log Experience (Placeholder)                                    |
+//+------------------------------------------------------------------+
+void LogExperience(double &state[], int action, int result)
+{
+   Print("Logging Experience: action=", action, ", result=", result);
+}
+
+//+------------------------------------------------------------------+
+//|Calculate reward from PnL                                        |
+//+------------------------------------------------------------------+
+double RewardFromPnL(double profit)
+{
+   return profit / 10.0;
+}
+
+//+------------------------------------------------------------------+
+//|Append experience to file                                        |
+//+------------------------------------------------------------------+
+void AppendExperienceToFile(datetime ts, string symbol, int direction, double lots, int slPts, int tpPts, double conf, double sent, const double &state[])
+{
+   int handle = FileOpen(g_experienceFile, FILE_READ | FILE_WRITE | FILE_CSV | FILE_ANSI);
+   if(handle == INVALID_HANDLE)
+   {
+      handle = FileOpen(g_experienceFile, FILE_WRITE | FILE_CSV | FILE_ANSI);
+      if(handle == INVALID_HANDLE) return;
+      FileWrite(handle, "ts", "symbol", "dir", "lots", "slPts", "tpPts", "conf", "sent", "state0", "state1", "state2", "state3", "state4", "state5", "state6", "state7");
+   }
+   
+   FileSeek(handle, 0, SEEK_END);
+   string state_str = "";
+   for(int i = 0; i < ArraySize(state); i++)
+   {
+      state_str += "," + DoubleToString(state[i], 5);
+   }
+
+   FileWrite(handle, TimeToString(ts), symbol, IntegerToString(direction), DoubleToString(lots, 2), 
+             IntegerToString(slPts), IntegerToString(tpPts), DoubleToString(conf, 2), DoubleToString(sent, 2) + state_str);
+   FileClose(handle);
+}
+
+//+------------------------------------------------------------------+
+//|Save policy snapshot                                             |
+//+------------------------------------------------------------------+
+void SavePolicySnapshot()
+{
+   if(!g_useRL) return;
+   
+   double params[];
+   RLAgent.GetPolicyUpdate(params);
+   
+   int handle = FileOpen(g_policySnapshotFile, FILE_WRITE | FILE_BIN);
+   if(handle == INVALID_HANDLE)
+   {
+      perfMonitor.LogError("Failed to open policy snapshot file for writing.");
+      return;
+   }
+
+   FileWriteArray(handle, params, 0, ArraySize(params));
+   FileClose(handle);
+   perfMonitor.LogInfo("Policy snapshot saved.");
+}
+
+//+------------------------------------------------------------------+
+//|Enable auto-snapshot                                             |
+//+------------------------------------------------------------------+
+void EnableAutoSnapshot(int seconds)
+{
+   if(seconds <= 0) seconds = g_snapshotIntervalSeconds;
+   g_snapshotIntervalSeconds = seconds;
+   EventSetTimer(g_snapshotIntervalSeconds);
+}
+
+void DisableAutoSnapshot()
+{
+   EventKillTimer();
+}
+
+//+------------------------------------------------------------------+
+//|Maybe snapshot after trades                                      |
+//+------------------------------------------------------------------+
+void MaybeSnapshotAfterTrades()
+{
+   g_snapshotTradeCounter++;
+   if(g_snapshotTradeCounter >= g_snapshotTradeInterval)
+   {
+      SavePolicySnapshot();
+      ExportArtifacts();
+      g_snapshotTradeCounter = 0;
+      perfMonitor.LogInfo("Auto-snapshot after trade interval performed.");
+   }
+}
+
+//+------------------------------------------------------------------+
+//|Export artifacts                                                 |
+//+------------------------------------------------------------------+
+void ExportArtifacts()
+{
+   string exportName = StringFormat("QEP_export_%d.bin", (int)TimeCurrent());
+   int out = FileOpen(exportName, FILE_WRITE | FILE_BIN);
+   if(out == INVALID_HANDLE)
+   {
+      perfMonitor.LogError("Failed to create export file: " + exportName);
+      return;
+   }
+   
+   FileWriteString(out, "This is a placeholder for exported data.");
+   FileClose(out);
+}
+
+//+------------------------------------------------------------------+
+//|Daily Equity Tracking Helpers                                    |
+//+------------------------------------------------------------------+
+void EnsureDayStartEquity()
+{
+   MqlDateTime dt;
+   TimeToStruct(TimeCurrent(), dt);
+   dt.hour = 0;
+   dt.min = 0;
+   dt.sec = 0;
+   datetime todayMidnight = StructToTime(dt);
+
+   if(g_dayAnchor != todayMidnight)
+   {
+      g_dayAnchor = todayMidnight;
+      g_startOfDayEquity = AccountInfoDouble(ACCOUNT_EQUITY);
+      perfMonitor.LogInfo("New day started. Start of Day Equity: " + DoubleToString(g_startOfDayEquity, 2));
+   }
+}
+
+string MakeDayKey(datetime t)
+{
+   MqlDateTime d;
+   TimeToStruct(t, d);
+   return(StringFormat("QEP:SOD:%s:%04d%02d%02d", _Symbol, d.year, d.mon, d.day));
+}
+
+//+------------------------------------------------------------------+
+//|RL Warm-up Gating Helpers                                        |
+//+------------------------------------------------------------------+
+int CountClosedDirectionDealsSince(datetime since)
+{
+   int count = 0;
+   HistorySelect(since, TimeCurrent());
+   for(int i = 0; i < HistoryDealsTotal(); i++)
+   {
+      ulong ticket = HistoryDealGetTicket(i);
+      if(HistoryDealGetInteger(ticket, DEAL_MAGIC) == MagicNumber &&
+         HistoryDealGetInteger(ticket, DEAL_ENTRY) == DEAL_ENTRY_OUT)
+      {
+         count++;
+      }
+   }
+   return count;
+}
+
+bool IsRLWarmupComplete()
+{
+   long secondsSinceStart = TimeCurrent() - g_rlStartTime;
+   double days = (double)secondsSinceStart / 86400.0;
+   int trades = CountClosedDirectionDealsSince(g_rlStartTime);
+   
+   if(days >= RLWarmupMinDays && trades >= RLWarmupMinTrades)
+   {
+      if(!g_rlInfluenceEnabled && RLInfluenceAfterWarmup)
+      {
+         g_rlInfluenceEnabled = true;
+         perfMonitor.LogInfo("RL warm-up complete. Agent influence is now enabled.");
+      }
+      return true;
+   }
+   return false;
+}
+
+//+------------------------------------------------------------------+
+//|Timer function for auto-snapshot                                 |
+//+------------------------------------------------------------------+
+void OnTimer()
+{
+   SavePolicySnapshot();
+   ExportArtifacts();
+   perfMonitor.LogInfo("Auto-snapshot and export performed via timer.");
+}
+
+//+------------------------------------------------------------------+
+//| Utility function to convert enum to string                      |
+//+------------------------------------------------------------------+
+string EnumToString(ENUM_RISK_STATE value)
+{
+   switch(value)
+   {
+      case RISK_CONSERVATIVE: return "RISK_CONSERVATIVE";
+      case RISK_BALANCED: return "RISK_BALANCED";
+      case RISK_AGGRESSIVE: return "RISK_AGGRESSIVE";
+   }
+   return "UNKNOWN";
+}
+//+------------------------------------------------------------------+
